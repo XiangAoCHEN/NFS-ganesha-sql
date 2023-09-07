@@ -16,6 +16,9 @@ build/
 .idea/
 src/cmake-build-debug/
 src/cmake-build-release/
+#add
+src/mybuild-debug/
+src/mybuild-release/
 # files
 *.kdevelop*
 *.kdevses

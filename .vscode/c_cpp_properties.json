@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "compileCommands": "${workspaceFolder}/src/mybuild-release/compile_commands.json",
+            "cStandard": "c17",
+            "cppStandard": "gnu++17"
+        }
+    ],
+    "version": 4
+}

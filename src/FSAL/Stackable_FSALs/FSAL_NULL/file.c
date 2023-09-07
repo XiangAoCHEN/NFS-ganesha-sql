@@ -223,8 +223,8 @@ void nullfs_read2(struct fsal_obj_handle *obj_hdl,
 
 	/* calling subfsal method */
 	op_ctx->fsal_export = export->export.sub_export;
-	handle->sub_handle->obj_ops->read2(handle->sub_handle, bypass,
-					  null_async_cb, read_arg, arg);
+	// handle->sub_handle->obj_ops->read2(handle->sub_handle, bypass,
+					//   null_async_cb, read_arg, arg);
 	op_ctx->fsal_export = &export->export;
 }
 

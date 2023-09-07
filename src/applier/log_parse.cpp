@@ -166,7 +166,7 @@ static void fil_page_set_type(byte*	page, uint32_t type) {
     mach_write_to_2(page + FIL_PAGE_TYPE, type);
 }
 
-/** Parse a MLOG_FILE_* record.
+/** Parse or process a MLOG_FILE_* record.
 @param[in]	ptr		redo log record
 @param[in]	end		end of the redo log buffer
 @param[in]	space_id	the tablespace ID
@@ -2998,6 +2998,7 @@ static byte* ParseSingleLogRecordBody(LOG_TYPE	type,
         case MLOG_FILE_DELETE:
         case MLOG_FILE_CREATE2:
         case MLOG_FILE_RENAME2:
+            // log0recv.cc: fil_name_parse
             return PARSE_MLOG_FILE_X(ptr, end_ptr, space_id, page_id, type);
         case MLOG_INDEX_LOAD:
             if (end_ptr < ptr + 8) {

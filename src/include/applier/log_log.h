@@ -334,6 +334,11 @@ struct log_group_t {
     uint32_t log_buf_size_per_file; // 每一个log file需要多大的log buf，不包括log 的元数据块还有log block内的header和trail
 
     bool first_written;
+
+    size_t log_header_start_lsn;
+    std::vector<int> log_fds;
+    int sys_tablespace_fd;
+    char sys_first_page_flushed_lsn[8];
 };
 
 extern log_group_t log_group;
