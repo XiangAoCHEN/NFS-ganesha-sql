@@ -1,6 +1,6 @@
 prefix=/usr
 exec_prefix=${prefix}
-libdir=${prefix}//usr/lib
+libdir=${prefix}//usr/lib64
 includedir=${prefix}/include/ntirpc
 
 Name: libntirpc
