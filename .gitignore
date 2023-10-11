@@ -21,6 +21,7 @@ src/cmake-build-release/
 t.cpp
 t
 log.txt
+
 *.kdevelop*
 *.kdevses
 TAGS
