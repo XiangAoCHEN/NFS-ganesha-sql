@@ -17,6 +17,10 @@ build/
 src/cmake-build-debug/
 src/cmake-build-release/
 # files
+#add
+t.cpp
+t
+log.txt
 *.kdevelop*
 *.kdevses
 TAGS
