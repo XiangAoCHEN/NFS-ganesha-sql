@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <vector>
 #include <string>
 #include <fcntl.h>
@@ -131,6 +132,7 @@ void init_applier_module(void) {
 
     auto data_len = mach_read_from_2(log_block_buf + LOG_BLOCK_HDR_DATA_LEN);
 
+    // printf("off=%zu, data-len=%zu\n", off_in_block, data_len);
     if (off_in_block != data_len) {
         // 在log file 中有尚未被恢复的log
         LogFatal(COMPONENT_INIT, "start nfs-ganesha failed, there are logs that have not been recovered in log file");

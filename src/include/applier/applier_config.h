@@ -10,15 +10,23 @@ using byte = unsigned char;
 using trx_id_t = uint64_t;
 using roll_ptr_t = uint64_t;
 
+#define DEBUG_MLOG_FILE_NAME
+
 static constexpr const size_t APPLY_BATCH_SIZE = 8 * 1024 * 1024; // 8M
-static constexpr const char * LOG_PATH_PREFIX = "/home/lemon/mysql/data/";
-static constexpr const char * SYS_TABLE_FILE = "/home/lemon/mysql/data/ibdata1";
+// static constexpr const char * LOG_PATH_PREFIX = "/home/lemon/mysql/data/";
+static constexpr const char *LOG_PATH_PREFIX =
+    "/home/ubuntu/mysql-5.7.35/cmake-build-debug/data/";
+// static constexpr const char * SYS_TABLE_FILE = "/home/lemon/mysql/data/ibdata1";
+static constexpr const char *SYS_TABLE_FILE =
+    "/home/ubuntu/mysql-5.7.35/cmake-build-debug/data/ibdata1";
 static constexpr const char * LOG_FILES_BASE_NAME = "ib_logfile";
 static constexpr int LOG_FILE_NUMBER = 2;
 static constexpr int APPLIER_THREAD = 1;
 #define SYSBENCH
 #ifdef SYSBENCH
-static constexpr const char * DATA_FILE_PREFIX = "/home/lemon/mysql/data/sbtest"; // don't suffix by '/'
+// static constexpr const char * DATA_FILE_PREFIX = "/home/lemon/mysql/data/sbtest"; // don't suffix by '/'
+static constexpr const char *DATA_FILE_PREFIX =
+    "/home/ubuntu/mysql-5.7.35/cmake-build-debug/data/sbtest";
 static constexpr const char * DATA_FILES[] = {"sbtest1.ibd",
                                               "sbtest2.ibd",
                                               "sbtest3.ibd",

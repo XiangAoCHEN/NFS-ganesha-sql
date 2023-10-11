@@ -1,9 +1,11 @@
+#include <cstdio>
 #include <iostream>
 #include <random>
 #include <cstring>
 #include <cassert>
 #include "applier/buffer_pool.h"
 #include "applier/log_log.h"
+
 Page::Page() :
         data_(new unsigned char[DATA_PAGE_SIZE]),
         state_(State::INVALID) {
@@ -36,6 +38,7 @@ BufferPool::BufferPool() :
         buffer_(new Page[BUFFER_POOL_SIZE]),
         data_path_(DATA_FILE_PREFIX),
         space_id_2_file_name_(),
+        recv_spaces_(),
         free_list_(), frame_id_2_page_address_(BUFFER_POOL_SIZE), lock_() {
 
     pthread_mutex_init(&lock_, nullptr);
@@ -62,15 +65,76 @@ BufferPool::BufferPool() :
     for (int i = 0; i < static_cast<int>(BUFFER_POOL_SIZE); ++i) {
         free_list_.emplace_back(i);
     }
+#ifdef DEBUG_MLOG_FILE_NAME
+    // print
+    printf("** print recv_spaces_: size=%ld pair\n", recv_spaces_.size());
+#endif
 }
+// extract *.idb file name
+std::string extractFilename(const std::string &fullPath) {
+  // Find the last occurrence of '/' or '\' (platform-independent)
+  size_t pos = fullPath.find_last_of("/\\");
 
+  // If the path contains no '/' or '\', return the original string
+  if (pos == std::string::npos) {
+    return fullPath;
+  }
 
-BufferPool::~BufferPool() {
-    if (buffer_ != nullptr) {
-        delete[] buffer_;
-        buffer_ = nullptr;
+  // Extract the filename part starting from the character after the last '/'
+  return fullPath.substr(pos + 1);
+}
+bool BufferPool::InsertSpaceid2Filename(space_id_t space_id, std::string file_name)
+{
+    typedef std::unordered_map<uint32_t, PageReaderWriter> recv_spaces_t;
+    // <map iterator, insert_flag>
+    // if key exists, insert_flag == false
+    std::pair<recv_spaces_t::iterator, bool> p =
+        recv_spaces_.insert({space_id, PageReaderWriter(file_name)});
+#ifdef DEBUG_MLOG_FILE_NAME
+    //print
+    for(auto it:recv_spaces_){
+        printf("%d -> %s\n",it.first,it.second.file_name_.c_str());
     }
-    pthread_mutex_unlock(&lock_);
+#endif
+    return p.second;
+}
+void BufferPool::ForceInsertSpaceid2Filename(space_id_t space_id, std::string file_name)
+{
+    std::string abs_file_path(DATA_FILE_PREFIX);
+    // extract *.ibd
+    std::string newFilename = extractFilename(file_name);
+    abs_file_path.append("/").append(newFilename);
+
+    auto it = recv_spaces_.find(space_id);
+    if(it==recv_spaces_.end()){// key donot exist
+#ifdef DEBUG_MLOG_FILE_NAME
+      printf("** insert a new spaceid->filename\n");
+#endif
+      // This will insert a new key-value pair if the key doesn't exist
+      // and have no effect if the key already exists.
+      recv_spaces_.emplace(space_id, PageReaderWriter(abs_file_path));
+    }else{
+#ifdef DEBUG_MLOG_FILE_NAME
+      printf("** update an existing spaceid->filename\n");
+#endif
+      // This will update the value if the key exists
+      // or insert a new key-value pair if it doesn't exist.
+      recv_spaces_[space_id] = PageReaderWriter(abs_file_path);
+    }
+#ifdef DEBUG_MLOG_FILE_NAME
+    // print
+    printf("** print recv_spaces_: size=%ld pair\n",recv_spaces_.size());
+    for (auto it : recv_spaces_) {
+        printf("** %d -> %s\n", it.first, it.second.file_name_.c_str());
+    }
+#endif
+}
+BufferPool::~BufferPool() {
+  if (buffer_ != nullptr) {
+    delete[] buffer_;
+    buffer_ = nullptr;
+  }
+  pthread_mutex_unlock(&lock_);
 }
 
 Page *BufferPool::NewPage(space_id_t space_id, page_id_t page_id) {

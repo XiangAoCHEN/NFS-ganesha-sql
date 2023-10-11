@@ -152,7 +152,11 @@ public:
 
     void CopyPage(void *dest_buf, space_id_t space_id, page_id_t page_id);
 
-private:
+    //==add
+    bool InsertSpaceid2Filename(space_id_t space_id, std::string file_name);
+    void ForceInsertSpaceid2Filename(space_id_t space_id, std::string file_name);
+
+  private:
     std::list<frame_id_t> lru_list_;
 
     // [space_id, page_id] -> iterator 快速定位1个page在 LRU 中的位置
@@ -162,6 +166,7 @@ private:
     std::string data_path_;
     // space_id -> file name的映射表
     std::unordered_map<uint32_t, PageReaderWriter> space_id_2_file_name_;
+    std::unordered_map<uint32_t, PageReaderWriter> recv_spaces_;
 
     // 指示buffer_中哪个frame是可以用的
     std::list<frame_id_t> free_list_;
