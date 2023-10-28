@@ -1,5 +1,6 @@
 #include <memory>
 #include <string>
+#include "applier/buffer_pool.h"
 #include "applier/log_parse.h"
 #include "applier/log_type.h"
 #include "applier/applier_config.h"
@@ -166,6 +167,7 @@ Sets the file page type.
 static void fil_page_set_type(byte*	page, uint32_t type) {
     mach_write_to_2(page + FIL_PAGE_TYPE, type);
 }
+
 /** Process a file name from a MLOG_FILE_* record.
 @param[in,out]	name		file name
 @param[in]	len		length of the file name
@@ -180,8 +182,20 @@ static bool fil_name_process(char *file_name, uint16_t len,
   
   std::cout << "file_name -> space_id: <" << file_name << " , " << space_id
             << ">" << std::endl;
-  bool insert_flag = buffer_pool.InsertSpaceid2Filename(space_id, std::string(file_name));
-
+  std::pair<recv_spaces_t::iterator, bool> p =
+      buffer_pool.InsertSpaceid2Filename(space_id, std::string(file_name));
+  bool insert_flag = p.second;
+  auto page_rw = p.first->second;
+  if(deleted){
+    /* Got MLOG_FILE_DELETE */
+    if (!insert_flag && !page_rw->deleted_flag) {
+      page_rw->deleted_flag = true;
+      // close file reader
+      page_rw->Close();
+      // delete hash: space_id 2 filename
+      buffer_pool.DeleteSpaceidHash(space_id);
+    }
+  }
   return processed;
 }
 
@@ -229,9 +243,11 @@ static byte* PARSE_MLOG_FILE_X(byte* ptr,
           buffer_pool.ForceInsertSpaceid2Filename(space_id, file_name);
           break;
         }
-        case MLOG_FILE_DELETE:
-            // fil_name_process(reinterpret_cast<char *>(ptr), len, space_id, true);
-            break;
+        case MLOG_FILE_DELETE:{
+
+          fil_name_process(reinterpret_cast<char *>(ptr), len, space_id, true);
+          break;
+        }
         case MLOG_FILE_CREATE2:
             break;
         case MLOG_FILE_RENAME2:

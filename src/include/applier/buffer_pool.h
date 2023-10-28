@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <pthread.h>
 #include <unordered_map>
 #include <list>
 #include <memory>
@@ -34,13 +36,66 @@ public:
         }
     };
 
+    bool write(const char *data, page_id_t page_id, size_t data_page_size_) {
+      std::unique_lock lock(mutex_);
+      if (!canOperate())
+        return false;
+
+      active_operations++;
+      stream_->seekp(static_cast<std::streamoff>(page_id * data_page_size_));
+      stream_->write(data, data_page_size_);
+      active_operations--;
+
+      return true;
+    }
+
+    uint32_t get_max_page_id(size_t data_page_size_) {
+      std::unique_lock lock(mutex_);
+      if (!canOperate())
+        return false;
+
+      active_operations++;
+      stream_->seekp(0, std::ios_base::end);
+      uint32_t max_page_id = (stream_->tellg() / data_page_size_) - 1;
+      active_operations--;
+      return max_page_id;
+    }
+    bool read(char *data, page_id_t page_id, size_t data_page_size_) {
+      std::unique_lock lock(mutex_);
+      if (!canOperate())
+        return false;
+
+      active_operations++;
+      stream_->seekp(static_cast<std::streamoff>(page_id * data_page_size_),
+                     std::ios::beg);
+      stream_->read(data, data_page_size_);
+      active_operations--;
+      return true;
+    }
+
+    void Close() {
+      std::unique_lock lock(mutex_);
+      while (active_operations > 0) {
+        // Optionally, use a condition_variable to wait here
+      }
+      if (stream_->is_open()) {
+        stream_->close();
+      }
+    }
+
     explicit PageReaderWriter(std::string &file_name)
             : file_name_(file_name),
-              stream_(std::make_shared<std::fstream>(file_name_, std::ios::binary | std::ios::out | std::ios::in)) {}
-
+              stream_(std::make_shared<std::fstream>(file_name_, std::ios::binary | std::ios::out | std::ios::in)),
+                deleted_flag(false){}
+    bool canOperate() const {
+      return !deleted_flag && stream_ && stream_->is_open();
+    }
     std::string file_name_{};
     std::shared_ptr<std::fstream> stream_{};
+    bool deleted_flag;//for MLOG_FILE_DELETE
 
+    std::mutex mutex_;
+    int active_operations; // number of active read/write operations
 };
 
 // 前置声明
@@ -125,6 +180,18 @@ private:
     State state_{State::INVALID};
 };
 
+// class TableSpace{
+// public:
+//   space_id_t space_id;
+//   std::string space_name;
+
+//   bool is_in_unflushed_spaces;/*!< true 
+//                             if this space is currently in
+//                             unflushed_spaces */
+//   pthread_rwlock_t rw_lock_;
+// };
+typedef std::unordered_map<uint32_t, std::shared_ptr<PageReaderWriter> > recv_spaces_t;
+
 class BufferPool {
 public:
     BufferPool();
@@ -153,9 +220,9 @@ public:
     void CopyPage(void *dest_buf, space_id_t space_id, page_id_t page_id);
 
     //==add
-    bool InsertSpaceid2Filename(space_id_t space_id, std::string file_name);
+    std::pair<recv_spaces_t::iterator, bool> InsertSpaceid2Filename(space_id_t space_id, std::string file_name);
     void ForceInsertSpaceid2Filename(space_id_t space_id, std::string file_name);
-
+    bool DeleteSpaceidHash(space_id_t space_id);
   private:
     std::list<frame_id_t> lru_list_;
 
@@ -166,7 +233,8 @@ public:
     std::string data_path_;
     // space_id -> file name的映射表
     std::unordered_map<uint32_t, PageReaderWriter> space_id_2_file_name_;
-    std::unordered_map<uint32_t, PageReaderWriter> recv_spaces_;
+    // std::unordered_map<uint32_t, PageReaderWriter> recv_spaces_;
+    recv_spaces_t recv_spaces_;
 
     // 指示buffer_中哪个frame是可以用的
     std::list<frame_id_t> free_list_;
