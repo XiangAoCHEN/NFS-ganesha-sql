@@ -39,8 +39,8 @@ BufferPool::BufferPool() :
         hash_map_(),
         buffer_(new Page[BUFFER_POOL_SIZE]),
         data_path_(DATA_FILE_PREFIX),
-        space_id_2_file_name_(),
-        recv_spaces_(),
+        // space_id_2_file_name_(),
+        space_IOs_(),
         free_list_(), frame_id_2_page_address_(BUFFER_POOL_SIZE), lock_() {
 
     pthread_mutex_init(&lock_, nullptr);
@@ -56,7 +56,7 @@ BufferPool::BufferPool() :
     //     uint32_t space_id = mach_read_from_4(page_buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
     //     ifs.close();
     //     std::cout << filename << "-> space_id: " << space_id << std::endl;
-    //     space_id_2_file_name_.insert({space_id, PageReaderWriter(filename)});
+    //     space_id_2_file_name_.insert({space_id, SpaceReaderWriter(filename)});
 
     //     std::string ibd_name = filename;
     //     ibd_name = ibd_name.substr(ibd_name.rfind('/') + 1);
@@ -82,17 +82,17 @@ std::string extractFilename(const std::string &fullPath) {
   // Extract the filename part starting from the character after the last '/'
   return fullPath.substr(pos + 1);
 }
-std::pair<recv_spaces_t::iterator, bool> BufferPool::InsertSpaceid2Filename(space_id_t space_id, std::string file_name) {
-  
+std::pair<space_IOs_t::iterator, bool> BufferPool::InsertSpaceid2Filename(space_id_t space_id, std::string file_name) {
+  PthreadMutexGuard guard(lock_);
   // <map iterator, insert_flag>
   // if key exists, insert_flag == false
-    std::pair<recv_spaces_t::iterator, bool> p =
-        recv_spaces_.insert(std::make_pair(
-            space_id, std::make_shared<PageReaderWriter>(file_name)));
+    std::pair<space_IOs_t::iterator, bool> p =
+        space_IOs_.insert(std::make_pair(
+            space_id, std::make_shared<SpaceReaderWriter>(file_name)));
 
-#ifdef DEBUG_MLOG_FILE_NAME
+#ifdef DEBUG_MLOG_FILE_DELETE
     //print
-    for(auto it:recv_spaces_){
+    for(auto it:space_IOs_){
         printf("%d -> %s\n",it.first,it.second->file_name_.c_str());
     }
 #endif
@@ -106,44 +106,27 @@ void BufferPool::ForceInsertSpaceid2Filename
     std::string abs_file_path(DATA_FILE_PREFIX);
     std::string newFilename = extractFilename(file_name); // extract *.ibd
     abs_file_path.append("/").append(newFilename);
-
-    PthreadMutexGuard guard(lock_);
-    
+        
     // filename -> spaceid
     DataPageGroup::Get().Insert(abs_file_path, space_id);
 
     // spaceid -> filename
-    recv_spaces_[space_id] =
-        std::make_shared<PageReaderWriter>(abs_file_path);
-
-    //     auto it = recv_spaces_.find(space_id);
-    //     if(it==recv_spaces_.end()){// key donot exist
-    // #ifdef DEBUG_MLOG_FILE_NAME
-    //       printf("** insert a new spaceid->filename\n");
-    // #endif
-    //       // This will insert a new key-value pair if the key doesn't exist
-    //       // and have no effect if the key already exists.
-    //       recv_spaces_.emplace(space_id, PageReaderWriter(abs_file_path));
-    //     }else{
-    // #ifdef DEBUG_MLOG_FILE_NAME
-    //       printf("** update an existing spaceid->filename\n");
-    // #endif
-    //       // This will update the value if the key exists
-    //       // or insert a new key-value pair if it doesn't exist.
-    //       recv_spaces_[space_id] = PageReaderWriter(abs_file_path);
-    //     }
-    // #ifdef DEBUG_MLOG_FILE_NAME
-    //     // print
-    //     printf("** print recv_spaces_: size=%ld pair\n",recv_spaces_.size());
-    //     for (auto it : recv_spaces_) {
-    //         printf("** %d -> %s\n", it.first, it.second.file_name_.c_str());
-    //     }
-    // #endif
+    PthreadMutexGuard guard(lock_);
+    space_IOs_[space_id] =
+        std::make_shared<SpaceReaderWriter>(abs_file_path);
+#ifdef DEBUG_MLOG_FILE_NAME
+        printf("*** insert [file_name, space_id] : [%s,%d]\n",abs_file_path.c_str(), space_id);
+#endif
 }
 bool BufferPool::DeleteSpaceidHash(space_id_t space_id) {
-    if(recv_spaces_.find(space_id)!=recv_spaces_.end()){
-        int delete_num = recv_spaces_.erase(space_id);
+    PthreadMutexGuard guard(lock_);
+    if(space_IOs_.find(space_id)!=space_IOs_.end()){
+#ifdef DEBUG_MLOG_FILE_DELETE
+        printf("*** delete [file_name, space_id] : [%s,%d]\n",space_IOs_[space_id]->file_name_.c_str(), space_id);
+#endif
+        int delete_num = space_IOs_.erase(space_id);
         std::cout<<"*** delete_num="<<delete_num<<"\n";
+
         if(delete_num==1)return true;
     }
     return false;
@@ -227,7 +210,7 @@ Page *BufferPool::GetPage(space_id_t space_id, page_id_t page_id) {
     //     std::cerr << "invalid space_id(" << space_id << ")" << std::endl;
     //     return nullptr;
     // }
-    if (recv_spaces_.find(space_id) == recv_spaces_.end()) {
+    if (space_IOs_.find(space_id) == space_IOs_.end()) {
       std::cerr << "invalid space_id(" << space_id << ")" << std::endl;
       return nullptr;
     }
@@ -263,13 +246,13 @@ Page *BufferPool::ReadPageFromDisk(space_id_t space_id, page_id_t page_id) {
     // 从free list中分配一个frame，从磁盘读取page，填充这个frame
     frame_id_t frame_id = free_list_.front();
     // auto fs = space_id_2_file_name_[space_id].stream_;
-    // auto fs = recv_spaces_[space_id].stream_;
+    // auto fs = space_IOs_[space_id].stream_;
 
     // assert(fs->is_open());
-    assert(recv_spaces_[space_id]->canOperate());
+    assert(space_IOs_[space_id]->canOperate());
     // fs->seekg(0, std::ios_base::end);
     // auto max_page_id = (fs->tellg() / DATA_PAGE_SIZE) - 1;
-    auto max_page_id = recv_spaces_[space_id]->get_max_page_id(DATA_PAGE_SIZE);
+    auto max_page_id = space_IOs_[space_id]->get_max_page_id(DATA_PAGE_SIZE);
 
     // 磁盘上还没有这个page
     if (page_id > max_page_id) {
@@ -279,7 +262,7 @@ Page *BufferPool::ReadPageFromDisk(space_id_t space_id, page_id_t page_id) {
 
     // fs->seekg(static_cast<std::streamoff>(page_id * DATA_PAGE_SIZE), std::ios::beg);
     // fs->read(reinterpret_cast<char *>(buffer_[frame_id].GetData()), DATA_PAGE_SIZE);
-    recv_spaces_[space_id]->read(
+    space_IOs_[space_id]->readPage(
         reinterpret_cast<char *>(buffer_[frame_id].GetData()), page_id,
         DATA_PAGE_SIZE);
     buffer_[frame_id].SetState(Page::State::FROM_DISK);
@@ -306,10 +289,10 @@ bool BufferPool::WriteBack(space_id_t space_id, page_id_t page_id) {
         auto *page_data = buffer_[frame_id].GetData();
         assert(mach_read_from_4(page_data + FIL_PAGE_OFFSET) == page_id);
         // auto fs = space_id_2_file_name_[space_id].stream_;
-        // auto fs = recv_spaces_[space_id].stream_;
+        // auto fs = space_IOs_[space_id].stream_;
         // fs->seekp(static_cast<std::streamoff>(page_id * DATA_PAGE_SIZE));
         // fs->write(reinterpret_cast<char *>(page_data), DATA_PAGE_SIZE);
-        recv_spaces_[space_id]->write(reinterpret_cast<char *>(page_data),
+        space_IOs_[space_id]->writePage(reinterpret_cast<char *>(page_data),
                                      page_id, DATA_PAGE_SIZE);
         return true;
     }
@@ -323,10 +306,10 @@ bool BufferPool::WriteBackLock(space_id_t space_id, page_id_t page_id) {
         frame_id_t frame_id = *(hash_map_[space_id][page_id]);
         auto *page_data = buffer_[frame_id].GetData();
         assert(mach_read_from_4(page_data + FIL_PAGE_OFFSET) == page_id);
-        recv_spaces_[space_id]->write(reinterpret_cast<char *>(page_data),
+        space_IOs_[space_id]->writePage(reinterpret_cast<char *>(page_data),
                                      page_id, DATA_PAGE_SIZE);
         // auto fs = space_id_2_file_name_[space_id].stream_;
-        // auto fs = recv_spaces_[space_id].stream_;
+        // auto fs = space_IOs_[space_id].stream_;
         // fs->seekp(static_cast<std::streamoff>(page_id * DATA_PAGE_SIZE));
         // fs->write(reinterpret_cast<char *>(buffer_[frame_id].GetData()),
         // DATA_PAGE_SIZE);

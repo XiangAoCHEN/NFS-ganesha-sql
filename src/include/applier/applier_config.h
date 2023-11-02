@@ -11,6 +11,7 @@ using trx_id_t = uint64_t;
 using roll_ptr_t = uint64_t;
 
 #define DEBUG_MLOG_FILE_NAME
+#define DEBUG_MLOG_FILE_DELETE
 
 static constexpr const size_t APPLY_BATCH_SIZE = 8 * 1024 * 1024; // 8M
 // static constexpr const char * LOG_PATH_PREFIX = "/home/lemon/mysql/data/";

@@ -26,17 +26,19 @@ public:
     page_id_t page_id_;
 };
 
-class PageReaderWriter {
+class SpaceReaderWriter {
 public:
-    PageReaderWriter() = default;
+    SpaceReaderWriter(){
 
-    ~PageReaderWriter() {
+    }
+
+    ~SpaceReaderWriter() {
         if (stream_.use_count() == 0 && stream_->is_open()) {
             stream_->close();
         }
     };
 
-    bool write(const char *data, page_id_t page_id, size_t data_page_size_) {
+    bool writePage(const char *data, page_id_t page_id, size_t data_page_size_) {
       std::unique_lock lock(mutex_);
       if (!canOperate())
         return false;
@@ -46,6 +48,19 @@ public:
       stream_->write(data, data_page_size_);
       active_operations--;
 
+      return true;
+    }
+
+    bool readPage(char *data, page_id_t page_id, size_t data_page_size_) {
+      std::unique_lock lock(mutex_);
+      if (!canOperate())
+        return false;
+
+      active_operations++;
+      stream_->seekp(static_cast<std::streamoff>(page_id * data_page_size_),
+                     std::ios::beg);
+      stream_->read(data, data_page_size_);
+      active_operations--;
       return true;
     }
 
@@ -60,18 +75,6 @@ public:
       active_operations--;
       return max_page_id;
     }
-    bool read(char *data, page_id_t page_id, size_t data_page_size_) {
-      std::unique_lock lock(mutex_);
-      if (!canOperate())
-        return false;
-
-      active_operations++;
-      stream_->seekp(static_cast<std::streamoff>(page_id * data_page_size_),
-                     std::ios::beg);
-      stream_->read(data, data_page_size_);
-      active_operations--;
-      return true;
-    }
 
     void Close() {
       std::unique_lock lock(mutex_);
@@ -83,12 +86,12 @@ public:
       }
     }
 
-    explicit PageReaderWriter(std::string &file_name)
+    explicit SpaceReaderWriter(std::string &file_name)
             : file_name_(file_name),
               stream_(std::make_shared<std::fstream>(file_name_, std::ios::binary | std::ios::out | std::ios::in)),
                 deleted_flag(false){}
     bool canOperate() const {
-      return !deleted_flag && stream_ && stream_->is_open();
+      return !deleted_flag && stream_->is_open();
     }
     std::string file_name_{};
     std::shared_ptr<std::fstream> stream_{};
@@ -180,20 +183,19 @@ private:
     State state_{State::INVALID};
 };
 
-// class TableSpace{
-// public:
-//   space_id_t space_id;
-//   std::string space_name;
-
-//   bool is_in_unflushed_spaces;/*!< true 
-//                             if this space is currently in
-//                             unflushed_spaces */
-//   pthread_rwlock_t rw_lock_;
+// class RecvSpace{
+// std::unordered_map<uint32_t, std::shared_ptr<SpaceReaderWriter> > space_IOs_;
+// std::unordered_map<uint32_t, std::string > spaceID_2_fileName_;
+//   pthread_rwlock_t io_rw_lock_;
+//   pthread_rwlock_t map_rw_lock_;
 // };
-typedef std::unordered_map<uint32_t, std::shared_ptr<PageReaderWriter> > recv_spaces_t;
+
+typedef std::unordered_map<uint32_t, std::shared_ptr<SpaceReaderWriter> > space_IOs_t;
 
 class BufferPool {
 public:
+
+
     BufferPool();
 
     ~BufferPool();
@@ -209,18 +211,18 @@ public:
 
     bool WriteBackLock(space_id_t space_id, page_id_t page_id);
 
-    std::string GetFilename(space_id_t space_id) const {
-        try {
-            return space_id_2_file_name_.at(space_id).file_name_;
-        } catch (std::exception &e) {
-            return "";
-        }
-    }
+    // std::string GetFilename(space_id_t space_id) const {
+    //     try {
+    //         return space_id_2_file_name_.at(space_id).file_name_;
+    //     } catch (std::exception &e) {
+    //         return "";
+    //     }
+    // }
 
     void CopyPage(void *dest_buf, space_id_t space_id, page_id_t page_id);
 
     //==add
-    std::pair<recv_spaces_t::iterator, bool> InsertSpaceid2Filename(space_id_t space_id, std::string file_name);
+    std::pair<space_IOs_t::iterator, bool> InsertSpaceid2Filename(space_id_t space_id, std::string file_name);
     void ForceInsertSpaceid2Filename(space_id_t space_id, std::string file_name);
     bool DeleteSpaceidHash(space_id_t space_id);
   private:
@@ -231,10 +233,12 @@ public:
     Page *buffer_;
     // 数据目录的path
     std::string data_path_;
+
     // space_id -> file name的映射表
-    std::unordered_map<uint32_t, PageReaderWriter> space_id_2_file_name_;
-    // std::unordered_map<uint32_t, PageReaderWriter> recv_spaces_;
-    recv_spaces_t recv_spaces_;
+    // std::unordered_map<uint32_t, SpaceReaderWriter> space_id_2_file_name_;
+    space_IOs_t space_IOs_;
+    pthread_rwlock_t io_rw_lock_;
+
 
     // 指示buffer_中哪个frame是可以用的
     std::list<frame_id_t> free_list_;

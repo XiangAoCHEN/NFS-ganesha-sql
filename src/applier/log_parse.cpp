@@ -180,15 +180,13 @@ static bool fil_name_process(char *file_name, uint16_t len,
 {
   bool processed = true;
   
-  std::cout << "file_name -> space_id: <" << file_name << " , " << space_id
-            << ">" << std::endl;
-  std::pair<recv_spaces_t::iterator, bool> p =
+  std::pair<space_IOs_t::iterator, bool> p =
       buffer_pool.InsertSpaceid2Filename(space_id, std::string(file_name));
-  bool insert_flag = p.second;
+  bool exist_flag = p.second;
   auto page_rw = p.first->second;
   if(deleted){
     /* Got MLOG_FILE_DELETE */
-    if (!insert_flag && !page_rw->deleted_flag) {
+    if (!exist_flag && !page_rw->deleted_flag) {
       page_rw->deleted_flag = true;
       // close file reader
       page_rw->Close();
@@ -237,15 +235,17 @@ static byte* PARSE_MLOG_FILE_X(byte* ptr,
         case MLOG_FILE_NAME:{
           char *file_name = reinterpret_cast<char *>(ptr);
 #ifdef DEBUG_MLOG_FILE_NAME
-          std::cout << "** file_name -> space_id: <" << file_name << " , "
-                    << space_id << ">" << std::endl;
+        printf("## MLOG_FILE_NAME: [file_name, space_id] : [%s,%d]\n",file_name,space_id);
 #endif
           buffer_pool.ForceInsertSpaceid2Filename(space_id, file_name);
           break;
         }
         case MLOG_FILE_DELETE:{
-
-          fil_name_process(reinterpret_cast<char *>(ptr), len, space_id, true);
+            char *file_name = reinterpret_cast<char *>(ptr);
+#ifdef DEBUG_MLOG_FILE_DELETE
+        printf("## MLOG_FILE_DELETE: [file_name, space_id] : [%s,%d]\n",file_name,space_id);
+#endif
+          fil_name_process(file_name, len, space_id, true);
           break;
         }
         case MLOG_FILE_CREATE2:
