@@ -1,4 +1,7 @@
 # dirs
+#add
+.clangd/
+
 oldtars/
 linuxbox-ceph/
 src/Docs/html/
