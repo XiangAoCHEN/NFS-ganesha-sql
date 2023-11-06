@@ -17,6 +17,24 @@ extern "C" {
 }
 #endif
 
+
+#include <chrono>  // chrono::system_clock
+#include <ctime>   // localtime
+#include <sstream> // stringstream
+#include <iomanip> // put_time
+#include <string>  // string
+
+std::string return_current_time_and_date()
+{
+    auto now = std::chrono::system_clock::now();
+    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
+    return ss.str();
+}
+
+
 // 从log buf中获取size大小的log，如果没有，就一直等待，直到log writer写入足够的log
 static size_t log_parse_acquire(size_t size) {
     size_t need_to_parse = 0;
@@ -3035,6 +3053,8 @@ static byte* ParseSingleLogRecordBody(LOG_TYPE	type,
                                       space_id_t space_id,
                                       page_id_t page_id) {
 
+    
+    printf("# [%s] %s \n",return_current_time_and_date().c_str(),GetLogString(type));
 
     switch (type) {
         case MLOG_FILE_NAME:

@@ -99,6 +99,8 @@ public:
 
     std::mutex mutex_;
     int active_operations; // number of active read/write operations
+
+    pthread_rwlock_t rw_lock_;
 };
 
 // 前置声明
