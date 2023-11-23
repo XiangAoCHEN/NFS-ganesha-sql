@@ -266,8 +266,15 @@ static byte* PARSE_MLOG_FILE_X(byte* ptr,
           fil_name_process(file_name, len, space_id, true);
           break;
         }
-        case MLOG_FILE_CREATE2:
-            break;
+        case MLOG_FILE_CREATE2:{//do nothing
+#ifdef DEBUG_MLOG_FILE_CREATE2
+          char *file_name = reinterpret_cast<char *>(ptr);
+          printf(
+              "## DEBUG_MLOG_FILE_CREATE2: [file_name, space_id] : [%s,%d]\n",
+              file_name, space_id);
+#endif
+          break;
+        }
         case MLOG_FILE_RENAME2:
             byte*	new_name = end_ptr + 2;
             if (end < new_name) {
