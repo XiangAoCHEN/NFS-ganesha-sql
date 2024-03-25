@@ -17,11 +17,12 @@ using roll_ptr_t = uint64_t;
 static constexpr const size_t APPLY_BATCH_SIZE = 8 * 1024 * 1024; // 8M
 // static constexpr const char * LOG_PATH_PREFIX = "/home/lemon/mysql/data/";
 static constexpr const char *LOG_PATH_PREFIX =
-    "/home/ubuntu/mysql-5.7.35/cmake-build-debug/data/";
+    "/mysql-5.7.35/mybuild/data/";
 // static constexpr const char * SYS_TABLE_FILE = "/home/lemon/mysql/data/ibdata1";
 static constexpr const char *SYS_TABLE_FILE =
-    "/home/ubuntu/mysql-5.7.35/cmake-build-debug/data/ibdata1";
+    "/mysql-5.7.35/mybuild/data/ibdata1";
 static constexpr const char * LOG_FILES_BASE_NAME = "ib_logfile";
+
 static constexpr int LOG_FILE_NUMBER = 2;
 static constexpr int APPLIER_THREAD = 1;
 #define SYSBENCH
@@ -73,7 +74,9 @@ static constexpr const char * DATA_FILES[] = {"sbtest1.ibd",
 #endif
 
 #ifdef TPCC
-static constexpr const char * DATA_FILE_PREFIX = "/home/lemon/mysql/data/tpcc"; // don't suffix by '/'
+// static constexpr const char * DATA_FILE_PREFIX = "/home/lemon/mysql/data/sbtest"; // don't suffix by '/'
+static constexpr const char *DATA_FILE_PREFIX =
+    "/mysql-5.7.35/mybuild/data/sbtest";
 static constexpr const char * DATA_FILES[] = {
         "customer.ibd",
         "district.ibd",
